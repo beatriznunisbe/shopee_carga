@@ -1,0 +1,1567 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ZHAZ — Sistema de Carregamento</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --blue-dark:  #0F2942; --blue-mid: #1A3F63; --blue-light: #2563EB;
+      --green:      #5BA84C; --green-dark: #4a8f3f;
+      --success:    #22C55E; --danger: #EF4444; --warn: #F59E0B;
+      --gray-50:    #F8FAFC; --gray-100: #F1F5F9; --gray-200: #E2E8F0;
+      --gray-400:   #94A3B8; --gray-600: #475569; --gray-800: #1E293B;
+      --white:      #FFFFFF;
+      --font-main:  'Inter', sans-serif;
+      --font-mono:  'JetBrains Mono', monospace;
+      --radius: 10px; --shadow-sm: 0 2px 8px rgba(15,41,66,0.08);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--font-main); background: var(--gray-100); color: var(--gray-800); min-height: 100vh; }
+
+    /* TOPBAR */
+    .topbar { background: var(--blue-dark); color: var(--white); padding: 0 24px; height: 64px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 12px rgba(0,0,0,0.25); }
+    .zhaz-logo { display: flex; align-items: center; }
+    .zhaz-logo svg { height: 36px; width: auto; }
+    .topbar-right { display: flex; align-items: center; gap: 10px; }
+    .topbar-counter { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; padding: 6px 14px; font-size: 0.85rem; }
+    .topbar-counter .count-num { font-family: var(--font-mono); font-weight: 600; font-size: 1.1rem; color: var(--green); }
+    .remessa-badge { background: rgba(91,168,76,0.15); border: 1px solid rgba(91,168,76,0.35); color: #86efac; border-radius: 8px; padding: 5px 12px; font-size: 0.78rem; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+    .remessa-badge .dot { width: 7px; height: 7px; background: var(--green); border-radius: 50%; animation: pulse 1.5s infinite; }
+
+    /* TABS */
+    .tab-nav { background: var(--blue-mid); display: flex; gap: 2px; padding: 0 24px; overflow-x: auto; scrollbar-width: none; }
+    .tab-nav::-webkit-scrollbar { display: none; }
+    .tab-btn { background: transparent; border: none; color: rgba(255,255,255,0.55); font-family: var(--font-main); font-size: 0.875rem; font-weight: 500; padding: 12px 18px; cursor: pointer; white-space: nowrap; border-bottom: 3px solid transparent; transition: color 0.2s, border-color 0.2s; display: flex; align-items: center; gap: 7px; }
+    .tab-btn:hover { color: rgba(255,255,255,0.85); }
+    .tab-btn.active { color: var(--white); border-bottom-color: var(--green); font-weight: 600; }
+
+    /* LAYOUT */
+    .main-content { max-width: 980px; margin: 0 auto; padding: 24px 16px 60px; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* CARDS */
+    .card { background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow-sm); border: 1px solid var(--gray-200); overflow: hidden; margin-bottom: 16px; }
+    .card-header { padding: 14px 20px; border-bottom: 1px solid var(--gray-200); background: var(--gray-50); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .card-header h2 { font-size: 0.95rem; font-weight: 700; color: var(--blue-dark); flex: 1; }
+    .card-header .badge { background: var(--blue-light); color: white; font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
+    .card-body { padding: 18px 20px; }
+
+    /* INPUTS */
+    label { display: block; font-size: 0.78rem; font-weight: 600; color: var(--gray-600); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+    input[type="text"], input[type="number"], textarea, select { width: 100%; border: 2px solid var(--gray-200); border-radius: 8px; padding: 10px 14px; font-family: var(--font-main); font-size: 0.9rem; color: var(--gray-800); background: var(--white); transition: border-color 0.2s, box-shadow 0.2s; outline: none; }
+    input[type="text"]:focus, input[type="number"]:focus, textarea:focus, select:focus { border-color: var(--blue-light); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+    textarea { resize: vertical; min-height: 80px; }
+
+    /* BOTÕES */
+    .btn { display: inline-flex; align-items: center; gap: 7px; padding: 10px 18px; border-radius: 8px; border: none; font-family: var(--font-main); font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: transform 0.1s, background 0.2s; white-space: nowrap; }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary { background: var(--blue-light); color: white; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-green { background: var(--green); color: white; }
+    .btn-green:hover { background: var(--green-dark); }
+    .btn-success { background: var(--success); color: white; }
+    .btn-danger { background: var(--danger); color: white; }
+    .btn-warn { background: var(--warn); color: white; }
+    .btn-ghost { background: var(--gray-100); color: var(--gray-600); border: 1px solid var(--gray-200); }
+    .btn-ghost:hover { background: var(--gray-200); }
+    .btn-lg { padding: 13px 26px; font-size: 0.95rem; border-radius: 10px; }
+    .btn-full { width: 100%; justify-content: center; }
+
+    /* ── ABA ETIQUETAS ── */
+    .etq-section { margin-bottom: 20px; }
+    .etq-geradas-grid {
+      display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; max-height: 340px; overflow-y: auto;
+      padding: 10px; background: var(--gray-50); border-radius: 8px; border: 1px solid var(--gray-200);
+    }
+    /* Chip de etiqueta — mostra status */
+    .etq-chip {
+      display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+      width: 76px; height: 50px; border-radius: 7px; font-family: var(--font-mono);
+      font-size: 0.68rem; font-weight: 700; cursor: default;
+      border: 2px solid transparent; transition: all 0.15s; position: relative;
+      user-select: none;
+    }
+    .etq-chip .chip-num { font-size: 0.78rem; font-weight: 800; }
+    .etq-chip .chip-status { font-size: 0.6rem; font-weight: 600; opacity: 0.85; margin-top: 1px; }
+    /* Estados */
+    .etq-chip.nao-impressa { background: var(--gray-100); border-color: var(--gray-200); color: var(--gray-400); }
+    .etq-chip.impressa     { background: #EFF6FF; border-color: #BFDBFE; color: #2563EB; }
+    .etq-chip.bipada       { background: #DCFCE7; border-color: #86EFAC; color: #166534; }
+    /* Checkbox de seleção */
+    .etq-chip input[type=checkbox] { position: absolute; top: 4px; right: 4px; cursor: pointer; accent-color: var(--green); }
+
+    .etq-legenda { display: flex; gap: 12px; flex-wrap: wrap; font-size: 0.76rem; margin-top: 10px; }
+    .etq-legenda .leg-item { display: flex; align-items: center; gap: 5px; }
+    .etq-legenda .leg-box { width: 14px; height: 14px; border-radius: 3px; border: 2px solid; }
+
+    .print-range-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-top: 14px; }
+    .print-range-row > div { flex: 1; min-width: 80px; }
+
+    /* Label de etiqueta para impressão */
+    .label-item {
+      width: 265px; height: 152px; border: 1px dashed var(--gray-400); border-radius: 6px;
+      background: var(--white); display: flex; flex-direction: column; align-items: center;
+      justify-content: center; padding: 8px 12px; gap: 2px; box-shadow: var(--shadow-sm);
+    }
+    .label-header-text { font-size: 12px; font-weight: 900; letter-spacing: 0.8px; color: var(--blue-dark); text-transform: uppercase; text-align: center; line-height: 1.5; }
+    .label-barcode-wrap { flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; }
+    .label-barcode-wrap svg { max-height: 70px; }
+    .label-code-text { font-family: var(--font-mono); font-size: 10px; font-weight: 600; color: var(--gray-800); letter-spacing: 1px; }
+
+    .seq-badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(91,168,76,0.08); border: 1px solid rgba(91,168,76,0.25); color: var(--green-dark); font-size: 0.78rem; font-weight: 600; padding: 4px 10px; border-radius: 20px; font-family: var(--font-mono); }
+
+    /* ── ABA BIPAGEM ── */
+    /* Painel de bipagem rápida */
+    .bip-fast-panel {
+      background: linear-gradient(135deg, var(--blue-dark) 0%, var(--blue-mid) 100%);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 16px;
+      color: white;
+    }
+    .bip-fast-panel .bip-counter-row {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
+    }
+    .bip-fast-panel .bip-num {
+      font-family: var(--font-mono); font-size: 3.5rem; font-weight: 800; color: var(--green);
+      text-shadow: 0 2px 12px rgba(91,168,76,0.4); line-height: 1;
+    }
+    .bip-fast-panel .bip-label { font-size: 0.75rem; opacity: 0.65; text-transform: uppercase; letter-spacing: 0.5px; }
+    .bip-fast-panel .bip-peso-total {
+      text-align: right; font-family: var(--font-mono); font-size: 1.4rem; font-weight: 800;
+      color: #86efac;
+    }
+    .bip-fast-panel .bip-peso-label { font-size: 0.7rem; opacity: 0.6; text-transform: uppercase; text-align: right; }
+
+    /* Grade de status das etiquetas */
+    .etq-status-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      max-height: 300px;
+      overflow-y: auto;
+      padding: 4px 0;
+    }
+    .etq-chip {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 68px;
+      height: 52px;
+      border-radius: 8px;
+      border: 2px solid transparent;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 700;
+      cursor: default;
+      transition: transform 0.1s;
+    }
+    .etq-chip:hover { transform: scale(1.05); }
+    .etq-chip .chip-num  { font-size: 0.88rem; font-weight: 800; line-height: 1.2; }
+    .etq-chip .chip-tag  { font-size: 0.58rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; margin-top: 2px; opacity: 0.85; }
+    /* Estados */
+    .etq-chip.pendente   { background: #F1F5F9; border-color: #CBD5E1; color: #64748B; }
+    .etq-chip.impressa   { background: #EFF6FF; border-color: #93C5FD; color: #1D4ED8; }
+    .etq-chip.bipada     { background: #DCFCE7; border-color: #4ADE80; color: #15803D; }
+    /* Legenda */
+    .etq-legenda { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; font-size: 0.78rem; }
+    .etq-legenda .leg { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+    .etq-legenda .leg-dot { width: 12px; height: 12px; border-radius: 3px; border: 2px solid; flex-shrink: 0; }
+    /* Contadores */
+    .etq-counters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+    .etq-counter-item {
+      flex: 1; min-width: 80px;
+      background: var(--gray-50); border: 1px solid var(--gray-200);
+      border-radius: 8px; padding: 10px 14px; text-align: center;
+    }
+    .etq-counter-item .ec-num { font-family: var(--font-mono); font-size: 1.5rem; font-weight: 800; line-height: 1; }
+    .etq-counter-item .ec-lbl { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; color: var(--gray-400); margin-top: 3px; }
+    .etq-counter-item.c-pendente .ec-num { color: #64748B; }
+    .etq-counter-item.c-impressa .ec-num { color: #1D4ED8; }
+    .etq-counter-item.c-bipada   .ec-num { color: #15803D; }
+    .etq-counter-item.c-total    .ec-num { color: var(--blue-dark); }
+
+    /* Campos rápidos lado a lado */
+    .bip-fields-row {
+      display: grid; grid-template-columns: 1fr 140px; gap: 10px; align-items: end;
+    }
+    .bip-field-wrap label { color: rgba(255,255,255,0.7); margin-bottom: 5px; }
+    #bipInput {
+      font-family: var(--font-mono); font-size: 1.1rem; font-weight: 600;
+      border-color: var(--green); letter-spacing: 1px;
+      background: rgba(255,255,255,0.95);
+    }
+    #bipInput:focus { border-color: var(--green-dark); box-shadow: 0 0 0 3px rgba(91,168,76,0.25); }
+    #pesoInput {
+      font-family: var(--font-mono); font-size: 1.1rem; font-weight: 600;
+      border-color: #86efac; letter-spacing: 1px;
+      background: rgba(255,255,255,0.95); text-align: right;
+    }
+    #pesoInput:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(91,168,76,0.25); }
+
+    /* Alerta duplicado */
+    .dup-alert-bar {
+      display: none; align-items: center; gap: 10px;
+      background: #FEF2F2; border: 2px solid var(--danger); border-radius: 8px;
+      padding: 10px 14px; margin-top: 10px; animation: shake 0.3s ease;
+    }
+    .dup-alert-bar.show { display: flex; }
+    .dup-alert-bar .dup-code { font-family: var(--font-mono); font-weight: 700; color: var(--danger); font-size: 0.95rem; }
+    .alert-success { padding: 10px 14px; border-radius: 8px; font-size: 0.83rem; font-weight: 500; margin-top: 10px; display: none; background: #DCFCE7; color: #166534; border: 1px solid #86EFAC; }
+    .alert-success.show { display: flex; align-items: center; gap: 8px; }
+
+    @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-5px)} 75%{transform:translateX(5px)} }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.85)} }
+
+    /* Status após bipagem */
+    .bip-status-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 12px; border-radius: 7px; font-size: 0.83rem; font-weight: 600;
+      margin-top: 8px; transition: all 0.2s;
+    }
+    .bip-status-bar.pronto { background: rgba(91,168,76,0.15); color: #86efac; }
+    .bip-status-bar.aguarda-peso { background: rgba(249,115,22,0.2); color: #fed7aa; }
+    .bip-status-bar .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: pulse 1.5s infinite; }
+
+    /* Lista de caixas bipadas */
+    .bip-table-wrap { overflow-x: auto; }
+    table.bip-table {
+      width: 100%; border-collapse: collapse; font-size: 0.83rem;
+    }
+    table.bip-table th {
+      background: var(--gray-50); padding: 9px 12px; text-align: left;
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.4px; color: var(--gray-600); border-bottom: 2px solid var(--gray-200);
+      white-space: nowrap;
+    }
+    table.bip-table td {
+      padding: 8px 12px; border-bottom: 1px solid var(--gray-200);
+      vertical-align: middle;
+    }
+    table.bip-table tr:last-child td { border-bottom: none; }
+    table.bip-table tr:hover td { background: var(--gray-50); }
+    table.bip-table .td-seq { color: var(--gray-400); font-family: var(--font-mono); font-size: 0.72rem; width: 40px; }
+    table.bip-table .td-code { font-family: var(--font-mono); font-weight: 700; color: var(--blue-dark); }
+    table.bip-table .td-date { color: var(--green-dark); font-size: 0.75rem; white-space: nowrap; }
+    table.bip-table .td-peso input {
+      width: 80px; border: 1.5px solid var(--gray-200); border-radius: 6px;
+      padding: 4px 7px; font-family: var(--font-mono); font-size: 0.82rem;
+      font-weight: 600; text-align: right; outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    table.bip-table .td-peso input:focus { border-color: var(--green); box-shadow: 0 0 0 2px rgba(91,168,76,0.15); }
+    table.bip-table .td-peso input.ok { border-color: var(--green); background: rgba(91,168,76,0.05); color: var(--green-dark); }
+    table.bip-table .btn-rm { background: none; border: none; cursor: pointer; color: var(--gray-400); padding: 3px 5px; border-radius: 4px; font-size: 13px; }
+    table.bip-table .btn-rm:hover { color: var(--danger); background: rgba(239,68,68,0.08); }
+
+    /* Barra de total peso */
+    .peso-total-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px;
+      background: linear-gradient(90deg, rgba(91,168,76,0.08), rgba(91,168,76,0.02));
+      border-top: 2px solid var(--green); border-radius: 0 0 8px 8px;
+    }
+    .peso-total-bar .pt-val { font-family: var(--font-mono); font-size: 1.3rem; font-weight: 800; color: var(--green-dark); }
+    .peso-total-bar .pt-sub { font-size: 0.75rem; color: var(--gray-400); margin-top: 2px; }
+
+    .fields-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 600px) { .fields-grid { grid-template-columns: 1fr; } }
+
+    /* REMESSAS */
+    .remessa-list { list-style: none; }
+    .remessa-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--gray-200); gap: 12px; flex-wrap: wrap; }
+    .remessa-item:last-child { border-bottom: none; }
+    .remessa-item .r-name { font-weight: 700; color: var(--blue-dark); }
+    .remessa-item .r-meta { font-size: 0.78rem; color: var(--gray-400); margin-top: 2px; }
+    .remessa-item .r-count { font-family: var(--font-mono); font-size: 1.3rem; font-weight: 800; color: var(--green); }
+    .remessa-item .r-actions { display: flex; gap: 6px; }
+
+    /* RESUMO */
+    .summary-hero { background: linear-gradient(135deg, var(--blue-dark), #163558); border-radius: var(--radius); padding: 24px; color: white; margin-bottom: 16px; display: flex; align-items: center; gap: 18px; }
+    .summary-hero h1 { font-size: 1.4rem; font-weight: 800; margin-bottom: 4px; }
+    .summary-hero p { opacity: 0.6; font-size: 0.83rem; }
+    .stat-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 12px; margin-bottom: 16px; }
+    @media(min-width:600px){ .stat-grid { grid-template-columns: repeat(4,1fr); } }
+    .stat-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius); padding: 16px; text-align: center; }
+    .stat-card .stat-num { font-family: var(--font-mono); font-size: 2rem; font-weight: 800; color: var(--blue-dark); line-height: 1; }
+    .stat-card .stat-label { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-400); margin-top: 5px; }
+    .detail-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius); padding: 16px 20px; margin-bottom: 12px; }
+    .detail-card h3 { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-400); margin-bottom: 8px; }
+    .box-chip-wrap { display: flex; flex-wrap: wrap; gap: 5px; max-height: 160px; overflow-y: auto; }
+    .box-chip { font-family: var(--font-mono); font-size: 0.74rem; font-weight: 600; padding: 3px 8px; border-radius: 5px; }
+    .box-chip.bipada  { background: #DCFCE7; color: #166534; border: 1px solid #86EFAC; }
+    .box-chip.nao-bip { background: #FEF2F2; color: #991B1B; border: 1px solid #FECACA; }
+    .empty-text { color: var(--gray-400); font-style: italic; font-size: 0.85rem; }
+
+    /* MODAIS */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 999; display: none; align-items: center; justify-content: center; padding: 16px; }
+    .modal-overlay.show { display: flex; }
+    .modal-box { background: var(--white); border-radius: 14px; padding: 28px; max-width: 440px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); text-align: center; }
+    .modal-box .modal-icon { font-size: 3rem; margin-bottom: 12px; }
+    .modal-box h3 { font-size: 1.1rem; font-weight: 800; margin-bottom: 8px; color: var(--blue-dark); }
+    .modal-box p { font-size: 0.88rem; color: var(--gray-600); margin-bottom: 20px; line-height: 1.6; }
+    .modal-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+    .modal-box .form-group { text-align: left; margin-bottom: 14px; }
+
+    /* TOAST */
+    .toast { position: fixed; bottom: 24px; right: 24px; background: var(--gray-800); color: white; padding: 12px 18px; border-radius: 10px; font-size: 0.85rem; font-weight: 500; z-index: 1000; box-shadow: 0 8px 24px rgba(0,0,0,0.25); transform: translateY(80px); opacity: 0; transition: transform 0.3s, opacity 0.3s; max-width: 320px; }
+    .toast.show { transform: translateY(0); opacity: 1; }
+
+    /* PRÉVIA DE ETIQUETAS NA TELA — igual ao print enviado */
+    #labelPreviewGrid {
+      display: grid;
+      grid-template-columns: repeat(3, 266px);
+      gap: 14px;
+      margin-top: 14px;
+      padding: 16px;
+      background: #f8fafc;
+      border-radius: 8px;
+      border: 1px solid #E2E8F0;
+      max-height: 520px;
+      overflow-y: auto;
+    }
+    @media (max-width: 900px) {
+      #labelPreviewGrid { grid-template-columns: repeat(2, 266px); }
+    }
+    @media (max-width: 580px) {
+      #labelPreviewGrid { grid-template-columns: 266px; }
+    }
+
+    /* Etiqueta — tamanho fixo 266x152px (proporção 7:4) */
+    .label-item {
+      width: 266px;
+      height: 152px;
+      border: 1.5px dashed #94A3B8;
+      border-radius: 8px;
+      background: #ffffff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 14px 6px;
+      gap: 0;
+      box-shadow: 0 1px 4px rgba(15,41,66,0.07);
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .label-header-text {
+      font-family: 'Inter', Arial, sans-serif;
+      font-size: 10.5px;
+      font-weight: 900;
+      letter-spacing: 0.4px;
+      color: #0F2942;
+      text-transform: uppercase;
+      text-align: center;
+      line-height: 1.5;
+      margin-bottom: 2px;
+    }
+    .label-barcode-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+    }
+    .label-barcode-wrap svg {
+      display: block;
+      width: 220px !important;
+      height: 70px !important;
+    }
+    .label-code-text {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9.5px;
+      font-weight: 900;
+      color: #000000;
+      letter-spacing: 2px;
+      margin-top: 2px;
+    }
+
+    /* IMPRESSÃO — 7cm × 4cm exatos */
+    @media print {
+      body > * { display: none !important; }
+      #printArea { display: block !important; }
+
+      @page {
+        margin: 0;
+        size: 7cm 4cm;
+      }
+
+      #printArea { width: 7cm; }
+      #printArea .print-labels-wrap { display: block; }
+
+      #printArea .label-item {
+        width: 7cm !important;
+        height: 4cm !important;
+        border: none !important;
+        border-radius: 0 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        padding: 2mm 3mm !important;
+        gap: 0.5mm !important;
+        page-break-after: always !important;
+        page-break-inside: avoid !important;
+        box-shadow: none !important;
+        background: #fff !important;
+        overflow: hidden !important;
+        aspect-ratio: unset !important;
+      }
+      #printArea .label-header-text {
+        font-size: 8.5pt !important;
+        font-weight: 900 !important;
+        color: #000 !important;
+        line-height: 1.4 !important;
+        letter-spacing: 0.4pt !important;
+      }
+      #printArea .label-barcode-wrap {
+        flex: 1 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 100% !important;
+      }
+      #printArea .label-barcode-wrap svg {
+        width: auto !important;
+        max-width: 6.2cm !important;
+        max-height: 18mm !important;
+      }
+      #printArea .label-code-text {
+        font-size: 7pt !important;
+        font-weight: 700 !important;
+        color: #000 !important;
+        letter-spacing: 1pt !important;
+      }
+    }
+    #printArea { display: none; }
+
+    @media (max-width: 600px) {
+      .topbar { padding: 0 12px; height: 56px; }
+      .zhaz-logo svg { height: 28px; }
+      .main-content { padding: 14px 10px 60px; }
+      .remessa-badge { display: none; }
+      .bip-fields-row { grid-template-columns: 1fr; }
+      .bip-fast-panel .bip-num { font-size: 2.5rem; }
+    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--gray-100); }
+    ::-webkit-scrollbar-thumb { background: var(--gray-200); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="zhaz-logo">
+    <svg viewBox="0 0 220 60" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0"  y="4"  width="14" height="6"  rx="1.5" fill="#1B6B9E"/>
+      <rect x="18" y="4"  width="14" height="6"  rx="1.5" fill="#1B6B9E"/>
+      <rect x="0"  y="14" width="14" height="6"  rx="1.5" fill="#5BA84C"/>
+      <rect x="18" y="14" width="6"  height="6"  rx="1.5" fill="#5BA84C"/>
+      <rect x="0"  y="24" width="14" height="6"  rx="1.5" fill="#1B6B9E"/>
+      <rect x="18" y="24" width="14" height="6"  rx="1.5" fill="#1B6B9E"/>
+      <text x="40" y="31" font-family="Arial Black,sans-serif" font-weight="900" font-size="28" fill="#1B6B9E" letter-spacing="-1">ZHAZ</text>
+      <text x="40" y="46" font-family="Arial,sans-serif" font-size="11" fill="#5BA84C">Soluções de A a Z</text>
+    </svg>
+  </div>
+  <div class="topbar-right">
+    <div class="remessa-badge"><div class="dot"></div><span id="remessaNameHeader">Sem remessa ativa</span></div>
+    <div class="topbar-counter">📦 <span class="count-num" id="headerCount">0</span></div>
+  </div>
+</header>
+
+<nav class="tab-nav">
+  <button class="tab-btn active" data-tab="tab-labels">🏷️ Etiquetas</button>
+  <button class="tab-btn" data-tab="tab-bip">📷 Bipagem</button>
+  <button class="tab-btn" data-tab="tab-remessas">📦 Remessas</button>
+  <button class="tab-btn" data-tab="tab-summary">📋 Fechar</button>
+</nav>
+
+<main class="main-content">
+
+  <!-- ══════════════════════════════════════
+       ABA 1 — ETIQUETAS
+  ══════════════════════════════════════ -->
+  <div id="tab-labels" class="tab-panel active">
+
+    <!-- Gerar lote de etiquetas -->
+    <div class="card">
+      <div class="card-header">
+        <span>⚙️</span><h2>Gerar Etiquetas</h2>
+        <div class="seq-badge" id="seqBadge">Total gerado: 0</div>
+      </div>
+      <div class="card-body">
+        <div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:flex-end;margin-bottom:14px;">
+          <div>
+            <label for="labelQty">Quantas etiquetas gerar agora?</label>
+            <input type="number" id="labelQty" min="1" max="9999" value="100" />
+          </div>
+          <button class="btn btn-primary" onclick="gerarLote()">➕ Gerar</button>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-ghost" style="font-size:0.75rem;" onclick="resetarTudo()">↺ Resetar tudo</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Selecionar intervalo e imprimir -->
+    <div class="card">
+      <div class="card-header"><span>🖨️</span><h2>Imprimir Intervalo</h2></div>
+      <div class="card-body">
+        <p style="font-size:0.83rem;color:var(--gray-600);margin-bottom:12px;">
+          Escolha de qual até qual etiqueta deseja imprimir. Apenas etiquetas ainda não impressas podem ser selecionadas.
+        </p>
+        <div class="print-range-row">
+          <div><label for="printDe">De (nº)</label><input type="number" id="printDe" min="1" placeholder="Ex: 1" /></div>
+          <div><label for="printAte">Até (nº)</label><input type="number" id="printAte" min="1" placeholder="Ex: 50" /></div>
+          <button class="btn btn-green btn-lg" onclick="imprimirIntervalo()">🖨️ Imprimir</button>
+        </div>
+        <div style="margin-top:10px;font-size:0.8rem;color:var(--gray-400);" id="printRangeInfo"></div>
+      </div>
+    </div>
+
+    <!-- Etiquetas geradas — prévia visual sempre visível -->
+    <div class="card" id="cardPrevia">
+      <div class="card-header">
+        <span>🏷️</span><h2>Etiquetas Geradas</h2>
+        <span id="previaInfo" style="font-size:0.8rem;color:var(--gray-600);"></span>
+        <div style="margin-left:auto;display:flex;gap:8px;">
+          <button class="btn btn-ghost" style="font-size:0.78rem;padding:6px 12px;" onclick="fecharPrevia()">🗑️ Limpar</button>
+          <button class="btn btn-green" id="btnConfirmarImpressao" onclick="confirmarImpressao()" disabled>🖨️ Imprimir Etiquetas</button>
+        </div>
+      </div>
+      <div class="card-body" style="padding:12px;">
+        <div id="labelPreviewGrid">
+          <div style="color:var(--gray-400);font-size:0.85rem;padding:20px;grid-column:1/-1;">
+            Gere etiquetas e defina o intervalo acima para visualizá-las aqui.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Grade de status das etiquetas -->
+    <div class="card" id="cardStatus">
+      <div class="card-header">
+        <span>📊</span><h2>Status das Etiquetas</h2>
+      </div>
+      <div class="card-body">
+        <!-- Contadores resumidos -->
+        <div class="etq-counters">
+          <div class="etq-counter-item c-total">
+            <div class="ec-num" id="cTotal">0</div>
+            <div class="ec-lbl">Total</div>
+          </div>
+          <div class="etq-counter-item c-pendente">
+            <div class="ec-num" id="cPendente">0</div>
+            <div class="ec-lbl">⬜ Pendente</div>
+          </div>
+          <div class="etq-counter-item c-impressa">
+            <div class="ec-num" id="cImpressa">0</div>
+            <div class="ec-lbl">🖨️ Impressa</div>
+          </div>
+          <div class="etq-counter-item c-bipada">
+            <div class="ec-num" id="cBipada">0</div>
+            <div class="ec-lbl">✅ Bipada</div>
+          </div>
+        </div>
+        <!-- Legenda -->
+        <div class="etq-legenda">
+          <div class="leg"><div class="leg-dot" style="background:#F1F5F9;border-color:#CBD5E1;"></div> Pendente</div>
+          <div class="leg"><div class="leg-dot" style="background:#EFF6FF;border-color:#93C5FD;"></div> Impressa</div>
+          <div class="leg"><div class="leg-dot" style="background:#DCFCE7;border-color:#4ADE80;"></div> Bipada ✅</div>
+        </div>
+        <!-- Chips -->
+        <div class="etq-status-grid" id="etqStatusGrid">
+          <div style="color:var(--gray-400);font-size:0.85rem;padding:10px;">Nenhuma etiqueta gerada ainda.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════
+       ABA 2 — BIPAGEM
+  ══════════════════════════════════════ -->
+  <div id="tab-bip" class="tab-panel">
+
+    <!-- Painel rápido de bipagem -->
+    <div class="bip-fast-panel">
+      <div class="bip-counter-row">
+        <div>
+          <div class="bip-num" id="bipCountBig">0</div>
+          <div class="bip-label">Caixas bipadas</div>
+        </div>
+        <div>
+          <div class="bip-peso-total" id="bipPesoTotalHeader">0,000 kg</div>
+          <div class="bip-peso-label">Peso total</div>
+        </div>
+      </div>
+
+      <!-- Campos CÓDIGO + PESO lado a lado com Tab/Enter automático -->
+      <div class="bip-fields-row">
+        <div class="bip-field-wrap">
+          <label for="bipInput">📷 Código de barras — bipe ou digite + Enter</label>
+          <input type="text" id="bipInput" placeholder="Aguardando bipagem..." autocomplete="off" autocorrect="off" spellcheck="false" />
+        </div>
+        <div class="bip-field-wrap">
+          <label for="pesoInput">⚖️ Peso (kg) — Enter para salvar</label>
+          <input type="number" id="pesoInput" placeholder="0.000" min="0" step="0.001" />
+        </div>
+      </div>
+
+      <!-- Status dinâmico -->
+      <div class="bip-status-bar pronto" id="bipStatusBar">
+        <div class="dot"></div> <span id="bipStatusTxt">Pronto — aguardando bipagem</span>
+      </div>
+
+      <!-- Alertas -->
+      <div class="dup-alert-bar" id="dupAlertBar">
+        <span style="font-size:1.3rem;">⛔</span>
+        <div>
+          <div class="dup-code" id="dupAlertCode"></div>
+          <div style="font-size:0.8rem;color:#7f1d1d;">Código já bipado! Não contabilizado.</div>
+        </div>
+      </div>
+      <div class="alert-success" id="alertSuccess">✅ Caixa registrada!</div>
+    </div>
+
+    <!-- Tabela de caixas registradas -->
+    <div class="card">
+      <div class="card-header">
+        <span>📦</span><h2>Caixas Registradas</h2>
+        <div class="badge" id="bipListBadge">0</div>
+        <button class="btn btn-ghost" style="font-size:0.75rem;padding:5px 10px;margin-left:auto;" onclick="undoLastBip()">↩ Desfazer último</button>
+      </div>
+      <div class="bip-table-wrap">
+        <table class="bip-table" id="bipTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Código</th>
+              <th>Data / Hora</th>
+              <th style="text-align:right;">Peso (kg)</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="bipTableBody">
+            <tr><td colspan="5" style="text-align:center;padding:24px;color:var(--gray-400);font-size:0.85rem;">Nenhuma caixa bipada ainda.</td></tr>
+          </tbody>
+        </table>
+        <div class="peso-total-bar" id="pesoTotalBar">
+          <div>
+            <div style="font-size:0.8rem;font-weight:600;color:var(--gray-600);text-transform:uppercase;letter-spacing:0.4px;">⚖️ Peso Total da Remessa</div>
+            <div class="pt-sub" id="pesoPendente">—</div>
+          </div>
+          <div class="pt-val"><span id="pesoTotalValor">0,000</span> kg</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Campos adicionais -->
+    <div class="card">
+      <div class="card-header"><span>📝</span><h2>Informações Adicionais</h2></div>
+      <div class="card-body">
+        <div class="fields-grid">
+          <div><label for="notasField">Notas de Faturamento</label><textarea id="notasField" placeholder="Ex: NF 12345..."></textarea></div>
+          <div><label for="obsField">Observações Gerais</label><textarea id="obsField" placeholder="Ex: Carga frágil..."></textarea></div>
+        </div>
+        <div style="margin-top:8px;font-size:0.75rem;color:var(--gray-400);">💾 Salvo automaticamente</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       ABA 3 — REMESSAS
+  ══════════════════════════════════════ -->
+  <div id="tab-remessas" class="tab-panel">
+    <div class="card">
+      <div class="card-header"><span>📦</span><h2>Gerenciar Remessas</h2><button class="btn btn-green" style="margin-left:auto;" onclick="openNovaRemessaModal()">➕ Nova Remessa</button></div>
+      <div class="card-body" style="padding:0;">
+        <ul class="remessa-list" id="remessaList">
+          <li style="padding:24px;text-align:center;color:var(--gray-400);font-size:0.85rem;">Nenhuma remessa criada ainda.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span>ℹ️</span><h2>Como funciona</h2></div>
+      <div class="card-body" style="font-size:0.85rem;color:var(--gray-600);line-height:1.9;">
+        <p>1. <strong>Crie uma remessa</strong> com o nome do caminhão/destino.</p>
+        <p>2. <strong>Gere as etiquetas</strong> e imprima o intervalo desejado.</p>
+        <p>3. <strong>Bipe as caixas</strong> diariamente — os dados ficam salvos.</p>
+        <p>4. <strong>Continue</strong> nos próximos dias clicando em "Continuar".</p>
+        <p>5. Quando terminar, vá em <strong>Fechar</strong> para finalizar e exportar.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       ABA 4 — FECHAR
+  ══════════════════════════════════════ -->
+  <div id="tab-summary" class="tab-panel">
+    <div class="summary-hero">
+      <div style="font-size:3rem;">🚛</div>
+      <div><h1>Resumo da Demanda</h1><p id="summaryDate">—</p></div>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-num" id="sumTotal">0</div><div class="stat-label">Caixas Bipadas</div></div>
+      <div class="stat-card"><div class="stat-num" id="sumEtiquetas">0</div><div class="stat-label">Etiquetas Geradas</div></div>
+      <div class="stat-card"><div class="stat-num" id="sumNaoBipadas" style="color:var(--danger);">0</div><div class="stat-label">Não Bipadas</div></div>
+      <div class="stat-card">
+        <div class="stat-num" id="sumPesoTotal" style="font-size:1.4rem;color:var(--green-dark);">0,000 kg</div>
+        <div class="stat-label">⚖️ Peso Total</div>
+        <div style="font-size:0.7rem;color:var(--gray-400);margin-top:3px;" id="sumPesoPend"></div>
+      </div>
+    </div>
+
+    <div class="detail-card"><h3>📄 Notas de Faturamento</h3><div id="sumNotas"><span class="empty-text">Nenhuma nota.</span></div></div>
+    <div class="detail-card"><h3>💬 Observações</h3><div id="sumObs"><span class="empty-text">Nenhuma observação.</span></div></div>
+
+    <div class="detail-card">
+      <h3>✅ Caixas Bipadas</h3>
+      <div class="box-chip-wrap" id="sumBipadas"><span class="empty-text">Nenhuma.</span></div>
+    </div>
+    <div class="detail-card">
+      <h3>❌ Etiquetas NÃO Bipadas</h3>
+      <div class="box-chip-wrap" id="sumNaoBipadasList"><span class="empty-text">Todas bipadas!</span></div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
+      <button class="btn btn-green btn-lg btn-full" onclick="exportarExcel()">📊 Exportar Planilha Excel</button>
+      <button class="btn btn-success btn-lg btn-full" onclick="finalizarDemanda()">✅ Finalizar / Carregar Caminhão</button>
+      <button class="btn btn-danger btn-full" onclick="openClearModal()">🗑️ Limpar Sistema para Nova Demanda</button>
+    </div>
+  </div>
+
+</main>
+
+<!-- Área de impressão (oculta) -->
+<div id="printArea"><div class="print-labels-wrap" id="printLabelsWrap"></div></div>
+
+<!-- Modal Nova Remessa -->
+<div class="modal-overlay" id="modalNovaRemessa">
+  <div class="modal-box">
+    <div class="modal-icon">📦</div>
+    <h3>Nova Remessa</h3>
+    <p>Dê um nome para identificar esta remessa (ex: "Caminhão SP - 13/06").</p>
+    <div class="form-group"><label for="novaRemessaNome">Nome da Remessa</label><input type="text" id="novaRemessaNome" placeholder="Ex: Remessa SP - Junho" /></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModalNovaRemessa()">Cancelar</button>
+      <button class="btn btn-green" onclick="criarRemessa()">Criar Remessa</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Limpar -->
+<div class="modal-overlay" id="modalClear">
+  <div class="modal-box">
+    <div class="modal-icon">⚠️</div>
+    <h3>Limpar Sistema?</h3>
+    <p>Esta ação apagará <strong>todos os dados</strong> da remessa atual. <strong>Não pode ser desfeita.</strong></p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-danger" onclick="clearAll()">Sim, limpar tudo</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Finalizar -->
+<div class="modal-overlay" id="modalFinalizar">
+  <div class="modal-box">
+    <div class="modal-icon">🎉</div>
+    <h3>Demanda Finalizada!</h3>
+    <p id="modalFinalizarText"></p>
+    <div class="modal-actions">
+      <button class="btn btn-green" onclick="exportarExcel();closeModalFinalizar();">📊 Exportar Excel</button>
+      <button class="btn btn-primary" onclick="closeModalFinalizar()">OK</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════
+// ESTADO
+// ═══════════════════════════════════════════════
+const STATE = {
+  // Etiquetas: array de objetos { num, impressa }
+  // num = número sequencial; impressa = bool
+  etiquetas:    [],   // todas as etiquetas geradas
+
+  // Bipagens: array de { code, peso, date, time }
+  bipList:      [],
+
+  // Campos extras
+  notas:        '',
+  obs:          '',
+
+  // Remessas
+  remessaAtiva: null,
+  remessas:     [],
+};
+
+const LS = {
+  etiquetas:    'cc_etiquetas',
+  bipList:      'cc_bipList',
+  notas:        'cc_notas',
+  obs:          'cc_obs',
+  remessaAtiva: 'cc_remessaAtiva',
+  remessas:     'cc_remessas',
+};
+
+// Código sendo bipado no momento (aguardando peso)
+let codePendente = null;
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+function init() {
+  try {
+    const e = localStorage.getItem(LS.etiquetas); if(e) STATE.etiquetas = JSON.parse(e);
+    const b = localStorage.getItem(LS.bipList);   if(b) STATE.bipList   = JSON.parse(b);
+    STATE.notas = localStorage.getItem(LS.notas) || '';
+    STATE.obs   = localStorage.getItem(LS.obs)   || '';
+    const ra = localStorage.getItem(LS.remessaAtiva); if(ra) STATE.remessaAtiva = JSON.parse(ra);
+    const rm = localStorage.getItem(LS.remessas);     if(rm) STATE.remessas     = JSON.parse(rm);
+  } catch(e){ console.warn(e); }
+
+  document.getElementById('notasField').value = STATE.notas;
+  document.getElementById('obsField').value   = STATE.obs;
+
+  renderBipTable();
+  renderEtqStatus();
+  updateCounters();
+  renderRemessas();
+  updateRemessaHeader();
+  updateSeqBadge();
+
+  const now = new Date();
+  document.getElementById('summaryDate').textContent =
+    now.toLocaleDateString('pt-BR',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+  focusBip();
+}
+
+// ═══════════════════════════════════════════════
+// SAVE
+// ═══════════════════════════════════════════════
+function saveAll() {
+  try {
+    localStorage.setItem(LS.etiquetas,    JSON.stringify(STATE.etiquetas));
+    localStorage.setItem(LS.bipList,      JSON.stringify(STATE.bipList));
+    localStorage.setItem(LS.notas,        STATE.notas);
+    localStorage.setItem(LS.obs,          STATE.obs);
+    localStorage.setItem(LS.remessaAtiva, JSON.stringify(STATE.remessaAtiva));
+    localStorage.setItem(LS.remessas,     JSON.stringify(STATE.remessas));
+  } catch(e){ console.warn(e); }
+}
+
+function syncRemessaAtiva() {
+  if (!STATE.remessaAtiva) return;
+  const i = STATE.remessas.findIndex(r => r.id === STATE.remessaAtiva.id);
+  if (i !== -1) {
+    STATE.remessas[i].etiquetas = [...STATE.etiquetas];
+    STATE.remessas[i].bipList   = [...STATE.bipList];
+    STATE.remessas[i].notas     = STATE.notas;
+    STATE.remessas[i].obs       = STATE.obs;
+  }
+}
+
+// ═══════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const t = btn.dataset.tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(t).classList.add('active');
+    if (t === 'tab-bip')      setTimeout(focusBip, 100);
+    if (t === 'tab-summary')  updateSummary();
+    if (t === 'tab-remessas') renderRemessas();
+  });
+});
+
+function focusBip()  { document.getElementById('bipInput')?.focus(); }
+function focusPeso() { document.getElementById('pesoInput')?.focus(); }
+
+// ═══════════════════════════════════════════════
+// ETIQUETAS — GERAR LOTE
+// ═══════════════════════════════════════════════
+function gerarLote() {
+  const qty = parseInt(document.getElementById('labelQty').value, 10);
+  if (!qty || qty < 1 || qty > 9999) { showToast('⚠️ Insira entre 1 e 9999.'); return; }
+
+  const start = STATE.etiquetas.length; // continua de onde parou
+  for (let i = 0; i < qty; i++) {
+    STATE.etiquetas.push({ num: start + i + 1, impressa: false });
+  }
+
+  syncRemessaAtiva(); saveAll();
+  renderEtqStatus();
+  updateSeqBadge();
+  showToast('✅ ' + qty + ' etiquetas geradas. Total: ' + STATE.etiquetas.length);
+}
+
+function resetarTudo() {
+  if (!confirm('Resetar TODAS as etiquetas? Isso apaga o histórico de impressão.')) return;
+  STATE.etiquetas = [];
+  syncRemessaAtiva(); saveAll();
+  renderEtqStatus();
+  updateSeqBadge();
+  showToast('↺ Etiquetas resetadas.');
+}
+
+// ═══════════════════════════════════════════════
+// ETIQUETAS — GRADE DE STATUS
+// ═══════════════════════════════════════════════
+function renderEtqGrid() {
+  const grid = document.getElementById('etqGrid');
+  if (STATE.etiquetas.length === 0) {
+    grid.innerHTML = '<div style="color:var(--gray-400);font-size:0.85rem;padding:16px;">Nenhuma etiqueta gerada ainda.</div>';
+    return;
+  }
+
+  // Descobre quais códigos já foram bipados
+  const bipados = new Set(STATE.bipList.map(b => b.code));
+
+  grid.innerHTML = STATE.etiquetas.map(etq => {
+    const code  = 'CX-' + String(etq.num).padStart(5,'0');
+    const bip   = bipados.has(code);
+    const cls   = bip ? 'bipada' : (etq.impressa ? 'impressa' : 'nao-impressa');
+    const icon  = bip ? '✅' : (etq.impressa ? '🖨️' : '·');
+    const stxt  = bip ? 'bipada' : (etq.impressa ? 'impressa' : 'pendente');
+    return `<div class="etq-chip ${cls}" title="${code} — ${stxt}">
+      <span class="chip-num">${etq.num}</span>
+      <span class="chip-status">${icon} ${stxt}</span>
+    </div>`;
+  }).join('');
+}
+
+function updateSeqBadge() {
+  const total = STATE.etiquetas.length;
+  const imp   = STATE.etiquetas.filter(e => e.impressa).length;
+  document.getElementById('seqBadge').textContent =
+    'Total: ' + total + ' | Impressas: ' + imp;
+  // Sugere intervalo de impressão
+  const proxNaoImp = STATE.etiquetas.find(e => !e.impressa);
+  const infoEl = document.getElementById('printRangeInfo');
+  if (infoEl && proxNaoImp) {
+    infoEl.textContent = '💡 Próxima não impressa: Nº ' + proxNaoImp.num;
+  } else if (infoEl && total > 0) {
+    infoEl.textContent = '✅ Todas as etiquetas já foram impressas.';
+  }
+}
+
+// ═══════════════════════════════════════════════
+// ETIQUETAS — MOSTRAR PRÉVIA ANTES DE IMPRIMIR
+// ═══════════════════════════════════════════════
+let etqSelecionadas = []; // guarda as etiquetas do intervalo atual
+
+function imprimirIntervalo() {
+  const de  = parseInt(document.getElementById('printDe').value, 10);
+  const ate = parseInt(document.getElementById('printAte').value, 10);
+
+  if (isNaN(de) || isNaN(ate) || de < 1 || ate < de) {
+    showToast('⚠️ Intervalo inválido. "De" deve ser menor ou igual a "Até".');
+    return;
+  }
+
+  etqSelecionadas = STATE.etiquetas.filter(e => e.num >= de && e.num <= ate);
+  if (etqSelecionadas.length === 0) {
+    showToast('⚠️ Nenhuma etiqueta encontrada nesse intervalo.');
+    return;
+  }
+
+  // Monta a PRÉVIA na tela
+  const grid = document.getElementById('labelPreviewGrid');
+  grid.innerHTML = '';
+  etqSelecionadas.forEach(etq => {
+    const code = 'CX-' + String(etq.num).padStart(5,'0');
+    grid.appendChild(criarElementoEtiqueta(code));
+  });
+
+  // Exibe info e habilita botão de imprimir
+  document.getElementById('previaInfo').textContent =
+    etqSelecionadas.length + ' etiqueta(s) — Nº ' + de + ' a ' + ate;
+  document.getElementById('btnConfirmarImpressao').disabled = false;
+
+  // Rola até a prévia
+  document.getElementById('cardPrevia').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  showToast('👁️ Confira as etiquetas e clique em "Imprimir Etiquetas".');
+}
+
+function fecharPrevia() {
+  document.getElementById('labelPreviewGrid').innerHTML =
+    '<div style="color:var(--gray-400);font-size:0.85rem;padding:20px;grid-column:1/-1;">Gere etiquetas e defina o intervalo acima para visualizá-las aqui.</div>';
+  document.getElementById('previaInfo').textContent = '';
+  document.getElementById('btnConfirmarImpressao').disabled = true;
+  etqSelecionadas = [];
+}
+
+function confirmarImpressao() {
+  if (etqSelecionadas.length === 0) return;
+
+  // Copia prévia para área de impressão
+  const wrap = document.getElementById('printLabelsWrap');
+  wrap.innerHTML = '';
+  document.querySelectorAll('#labelPreviewGrid .label-item').forEach(el => {
+    wrap.appendChild(el.cloneNode(true));
+  });
+
+  // Marca como impressas e salva
+  etqSelecionadas.forEach(etq => { etq.impressa = true; });
+  syncRemessaAtiva(); saveAll();
+  renderEtqStatus();
+  updateSeqBadge();
+
+  const qtd = etqSelecionadas.length;
+  window.print();
+  fecharPrevia();
+  showToast('🖨️ ' + qtd + ' etiquetas enviadas para impressão!');
+}
+
+function criarElementoEtiqueta(code) {
+  const div = document.createElement('div');
+  div.className = 'label-item';
+
+  const h = document.createElement('div');
+  h.className = 'label-header-text';
+  h.innerHTML = 'IMPRESSORA ELGIN L42 PRO<br>ID 00392';
+
+  const bw = document.createElement('div');
+  bw.className = 'label-barcode-wrap';
+  const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+  bw.appendChild(svg);
+
+  const ct = document.createElement('div');
+  ct.className = 'label-code-text';
+  ct.textContent = code;
+
+  div.appendChild(h); div.appendChild(bw); div.appendChild(ct);
+
+  try {
+    JsBarcode(svg, code, {
+      format:'CODE128', lineColor:'#000', background:'transparent',
+      width:2, height:60, displayValue:false, margin:0
+    });
+  } catch(e){ console.warn(e); }
+
+  return div;
+}
+
+// ═══════════════════════════════════════════════
+// GRADE DE STATUS DAS ETIQUETAS
+// ═══════════════════════════════════════════════
+function renderEtqStatus() {
+  const grid = document.getElementById('etqStatusGrid');
+  if (!grid) return;
+
+  const total = STATE.etiquetas.length;
+  if (total === 0) {
+    grid.innerHTML = '<div style="color:var(--gray-400);font-size:0.85rem;padding:10px;">Nenhuma etiqueta gerada ainda.</div>';
+    // Zera contadores
+    ['cTotal','cPendente','cImpressa','cBipada'].forEach(id => {
+      const el = document.getElementById(id); if(el) el.textContent = '0';
+    });
+    return;
+  }
+
+  const bipados = new Set(STATE.bipList.map(b => b.code));
+  let nPendente = 0, nImpressa = 0, nBipada = 0;
+
+  grid.innerHTML = STATE.etiquetas.map(etq => {
+    const code = 'CX-' + String(etq.num).padStart(5,'0');
+    const bip  = bipados.has(code);
+    let cls, tag;
+    if (bip)           { cls = 'bipada';   tag = '✅ bipada';   nBipada++; }
+    else if (etq.impressa) { cls = 'impressa'; tag = '🖨️ impressa'; nImpressa++; }
+    else               { cls = 'pendente'; tag = '· pendente';  nPendente++; }
+
+    return `<div class="etq-chip ${cls}" title="${code} — ${tag}">
+      <span class="chip-num">${etq.num}</span>
+      <span class="chip-tag">${tag}</span>
+    </div>`;
+  }).join('');
+
+  // Atualiza contadores
+  const el = (id) => document.getElementById(id);
+  if(el('cTotal'))    el('cTotal').textContent    = total;
+  if(el('cPendente')) el('cPendente').textContent = nPendente;
+  if(el('cImpressa')) el('cImpressa').textContent = nImpressa;
+  if(el('cBipada'))   el('cBipada').textContent   = nBipada;
+}
+
+// ═══════════════════════════════════════════════
+// BIPAGEM — FLUXO RÁPIDO
+// Código → Enter → foca peso → peso → Enter → salva + volta ao código
+// ═══════════════════════════════════════════════
+const bipInput  = document.getElementById('bipInput');
+const pesoInput = document.getElementById('pesoInput');
+
+// Campo de código: qualquer digitação nova pula para peso automaticamente
+// O leitor de barras envia o código completo de uma vez — detectamos isso
+// e pulamos para peso assim que o código aparecer (sem precisar de Enter)
+let bipTimer = null;
+
+bipInput.addEventListener('input', function() {
+  // Cancela timer anterior
+  clearTimeout(bipTimer);
+  const code = this.value.trim().toUpperCase();
+  if (!code) return;
+
+  // Aguarda 80ms sem nova digitação (tempo suficiente para o leitor terminar)
+  // Depois pula automaticamente para o peso
+  bipTimer = setTimeout(() => {
+    hideDup(); hideSucc();
+
+    // Verifica duplicado
+    if (STATE.bipList.some(i => i.code === code)) {
+      showDup(code);
+      bipInput.value = '';
+      return;
+    }
+
+    // Registra código pendente e pula para peso SEM precisar de Enter
+    codePendente = code;
+    bipInput.value = code; // mantém visível
+    setStatus('aguarda-peso', '⚖️  "' + code + '" lido — insira o peso e Enter');
+    pesoInput.value = '';
+    focusPeso();
+  }, 80);
+});
+
+// Campo de peso: UM único Enter salva e volta ao código
+pesoInput.addEventListener('keydown', function(e) {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  if (!codePendente) { focusBip(); return; }
+
+  const pesoVal = this.value.trim();
+  const pesoNum = parseFloat(pesoVal);
+  const peso    = (pesoVal === '' || isNaN(pesoNum)) ? null : pesoNum;
+
+  const now  = new Date();
+  const date = now.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+  const time = now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+
+  STATE.bipList.push({ code: codePendente, peso, date, time });
+
+  // Ordena por número da caixa
+  STATE.bipList.sort((a, b) => {
+    const na = parseInt(a.code.replace('CX-',''), 10) || 0;
+    const nb = parseInt(b.code.replace('CX-',''), 10) || 0;
+    return na - nb;
+  });
+
+  syncRemessaAtiva(); saveAll();
+  renderBipTable();
+  renderEtqStatus();
+  updateCounters();
+  showSucc();
+
+  const codeRegistrado = codePendente;
+  codePendente   = null;
+  this.value     = '';
+  bipInput.value = '';
+  setStatus('pronto', '✅ "' + codeRegistrado + '" salvo — aguardando próxima bipagem');
+  focusBip();
+});
+
+// Escape no peso cancela e volta ao código
+pesoInput.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    codePendente = null;
+    this.value   = '';
+    bipInput.value = '';
+    setStatus('pronto', 'Cancelado — aguardando bipagem');
+    focusBip();
+  }
+});
+
+function setStatus(tipo, txt) {
+  const bar = document.getElementById('bipStatusBar');
+  bar.className = 'bip-status-bar ' + tipo;
+  document.getElementById('bipStatusTxt').textContent = txt;
+}
+
+function showDup(code) {
+  const bar = document.getElementById('dupAlertBar');
+  document.getElementById('dupAlertCode').textContent = '⛔ DUPLICADO: ' + code;
+  bar.classList.add('show');
+  setStatus('pronto','⚠️ Duplicado ignorado — aguardando próxima bipagem');
+  setTimeout(() => bar.classList.remove('show'), 4000);
+}
+function hideDup()  { document.getElementById('dupAlertBar').classList.remove('show'); }
+function showSucc() {
+  const el = document.getElementById('alertSuccess');
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 1500);
+}
+function hideSucc() { document.getElementById('alertSuccess').classList.remove('show'); }
+
+// ═══════════════════════════════════════════════
+// RENDERIZAR TABELA DE BIPAGENS
+// ═══════════════════════════════════════════════
+function renderBipTable() {
+  const tbody = document.getElementById('bipTableBody');
+
+  if (STATE.bipList.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--gray-400);font-size:0.85rem;">Nenhuma caixa bipada ainda.</td></tr>';
+    updatePesoTotal();
+    return;
+  }
+
+  tbody.innerHTML = STATE.bipList.map((item, idx) => {
+    const pesoVal = (item.peso !== null && item.peso !== undefined) ? item.peso : '';
+    const temPeso = pesoVal !== '';
+    return `<tr>
+      <td class="td-seq">${String(idx+1).padStart(3,'0')}</td>
+      <td class="td-code">${escHtml(item.code)}</td>
+      <td class="td-date">${escHtml(item.date||'')} ${escHtml(item.time||'')}</td>
+      <td class="td-peso">
+        <input type="number" min="0" step="0.001" placeholder="0.000"
+          value="${temPeso ? pesoVal : ''}"
+          class="${temPeso ? 'ok' : ''}"
+          onchange="salvarPesoLinha(${idx}, this)"
+          oninput="salvarPesoLinha(${idx}, this)"
+        /> kg
+      </td>
+      <td><button class="btn-rm" onclick="removeBip(${idx})" title="Remover">✕</button></td>
+    </tr>`;
+  }).join('');
+
+  updatePesoTotal();
+}
+
+function salvarPesoLinha(idx, el) {
+  const v = parseFloat(el.value);
+  STATE.bipList[idx].peso = (el.value === '' || isNaN(v)) ? null : v;
+  el.classList.toggle('ok', el.value !== '' && !isNaN(v));
+  syncRemessaAtiva(); saveAll();
+  updatePesoTotal();
+}
+
+function updatePesoTotal() {
+  const total    = STATE.bipList.reduce((a,i) => a + (parseFloat(i.peso)||0), 0);
+  const semPeso  = STATE.bipList.filter(i => i.peso === null || i.peso === undefined || i.peso === '').length;
+
+  document.getElementById('pesoTotalValor').textContent =
+    total.toLocaleString('pt-BR',{minimumFractionDigits:3,maximumFractionDigits:3});
+  document.getElementById('bipPesoTotalHeader').textContent =
+    total.toLocaleString('pt-BR',{minimumFractionDigits:3,maximumFractionDigits:3}) + ' kg';
+
+  const pend = document.getElementById('pesoPendente');
+  if (pend) pend.textContent = semPeso > 0
+    ? semPeso + ' caixa(s) sem peso informado'
+    : STATE.bipList.length > 0 ? '✅ Todas com peso informado' : '—';
+}
+
+function removeBip(idx) {
+  const code = STATE.bipList[idx]?.code;
+  STATE.bipList.splice(idx, 1);
+  syncRemessaAtiva(); saveAll();
+  renderBipTable(); renderEtqGrid(); updateCounters();
+  if (code) showToast('🗑️ Removido: ' + code);
+}
+
+function undoLastBip() {
+  if (STATE.bipList.length === 0) return;
+  // Remove o último da lista (que está em ordem numérica, então o último é o de maior número)
+  const removed = STATE.bipList[STATE.bipList.length - 1];
+  STATE.bipList.splice(STATE.bipList.length - 1, 1);
+  syncRemessaAtiva(); saveAll();
+  renderBipTable(); renderEtqGrid(); updateCounters();
+  showToast('↩ Desfeito: ' + removed.code);
+}
+
+function updateCounters() {
+  const c = STATE.bipList.length;
+  document.getElementById('headerCount').textContent  = c;
+  document.getElementById('bipCountBig').textContent  = c;
+  document.getElementById('bipListBadge').textContent = c;
+  updatePesoTotal();
+}
+
+// ═══════════════════════════════════════════════
+// CAMPOS ADICIONAIS
+// ═══════════════════════════════════════════════
+document.getElementById('notasField').addEventListener('input', function() {
+  STATE.notas = this.value; syncRemessaAtiva(); saveAll();
+});
+document.getElementById('obsField').addEventListener('input', function() {
+  STATE.obs = this.value; syncRemessaAtiva(); saveAll();
+});
+
+// ═══════════════════════════════════════════════
+// REMESSAS
+// ═══════════════════════════════════════════════
+function openNovaRemessaModal() {
+  document.getElementById('novaRemessaNome').value = '';
+  document.getElementById('modalNovaRemessa').classList.add('show');
+  setTimeout(() => document.getElementById('novaRemessaNome').focus(), 100);
+}
+function closeModalNovaRemessa() { document.getElementById('modalNovaRemessa').classList.remove('show'); }
+
+document.getElementById('novaRemessaNome').addEventListener('keydown', e => { if(e.key==='Enter') criarRemessa(); });
+
+function criarRemessa() {
+  const nome = document.getElementById('novaRemessaNome').value.trim();
+  if (!nome) { showToast('⚠️ Digite um nome.'); return; }
+  const r = { id: Date.now(), nome, criadaEm: new Date().toLocaleDateString('pt-BR'), etiquetas:[], bipList:[], notas:'', obs:'' };
+  STATE.remessas.push(r);
+  ativarRemessa(r.id);
+  closeModalNovaRemessa();
+}
+
+function ativarRemessa(id) {
+  // Salva estado atual na remessa ativa antes de trocar
+  if (STATE.remessaAtiva) {
+    const i = STATE.remessas.findIndex(r => r.id === STATE.remessaAtiva.id);
+    if (i !== -1) {
+      STATE.remessas[i].etiquetas = [...STATE.etiquetas];
+      STATE.remessas[i].bipList   = [...STATE.bipList];
+      STATE.remessas[i].notas     = STATE.notas;
+      STATE.remessas[i].obs       = STATE.obs;
+    }
+  }
+  const remessa = STATE.remessas.find(r => r.id === id);
+  if (!remessa) return;
+
+  STATE.remessaAtiva = { id: remessa.id, nome: remessa.nome, criadaEm: remessa.criadaEm };
+  STATE.etiquetas    = [...(remessa.etiquetas || [])];
+  STATE.bipList      = [...(remessa.bipList   || [])];
+  STATE.notas        = remessa.notas || '';
+  STATE.obs          = remessa.obs   || '';
+
+  document.getElementById('notasField').value = STATE.notas;
+  document.getElementById('obsField').value   = STATE.obs;
+
+  saveAll();
+  renderBipTable(); renderEtqStatus(); updateCounters();
+  updateSeqBadge(); updateRemessaHeader(); renderRemessas();
+  showToast('📦 Remessa "' + remessa.nome + '" ativada!');
+}
+
+function updateRemessaHeader() {
+  document.getElementById('remessaNameHeader').textContent =
+    STATE.remessaAtiva ? STATE.remessaAtiva.nome : 'Sem remessa ativa';
+}
+
+function renderRemessas() {
+  const ul = document.getElementById('remessaList');
+  if (STATE.remessas.length === 0) {
+    ul.innerHTML = '<li style="padding:24px;text-align:center;color:var(--gray-400);font-size:0.85rem;">Nenhuma remessa criada.</li>';
+    return;
+  }
+  ul.innerHTML = STATE.remessas.map(r => {
+    const isAtiva = STATE.remessaAtiva && STATE.remessaAtiva.id === r.id;
+    const count   = isAtiva ? STATE.bipList.length : (r.bipList?.length || 0);
+    const etqTot  = isAtiva ? STATE.etiquetas.length : (r.etiquetas?.length || 0);
+    return `<li class="remessa-item">
+      <div>
+        <div class="r-name">${escHtml(r.nome)}
+          ${isAtiva ? '<span style="background:var(--green);color:white;font-size:0.68rem;padding:2px 7px;border-radius:10px;margin-left:6px;">ATIVA</span>' : ''}
+        </div>
+        <div class="r-meta">Criada em ${escHtml(r.criadaEm)} · ${etqTot} etiquetas · ${count} bipadas</div>
+      </div>
+      <div class="r-count">${count}</div>
+      <div class="r-actions">
+        ${!isAtiva
+          ? `<button class="btn btn-green" style="font-size:0.78rem;padding:7px 12px;" onclick="ativarRemessa(${r.id})">▶ Continuar</button>`
+          : '<span style="font-size:0.78rem;color:var(--green);font-weight:600;">Em andamento</span>'}
+        <button class="btn btn-danger" style="font-size:0.78rem;padding:7px 12px;" onclick="excluirRemessa(${r.id})">🗑️</button>
+      </div>
+    </li>`;
+  }).join('');
+}
+
+function excluirRemessa(id) {
+  if (!confirm('Excluir esta remessa? Os dados serão perdidos.')) return;
+  if (STATE.remessaAtiva?.id === id) {
+    STATE.remessaAtiva = null;
+    STATE.etiquetas = []; STATE.bipList = []; STATE.notas = ''; STATE.obs = '';
+    document.getElementById('notasField').value = '';
+    document.getElementById('obsField').value   = '';
+    renderEtqGrid(); renderBipTable(); updateCounters(); updateSeqBadge(); updateRemessaHeader();
+  }
+  STATE.remessas = STATE.remessas.filter(r => r.id !== id);
+  saveAll(); renderRemessas();
+  showToast('🗑️ Remessa excluída.');
+}
+
+// ═══════════════════════════════════════════════
+// RESUMO
+// ═══════════════════════════════════════════════
+function updateSummary() {
+  const bipados   = new Set(STATE.bipList.map(b => b.code));
+  const total     = STATE.bipList.length;
+  const etqTotal  = STATE.etiquetas.length;
+  const naoBip    = STATE.etiquetas.filter(e => !bipados.has('CX-' + String(e.num).padStart(5,'0'))).length;
+  const pesoTotal = STATE.bipList.reduce((a,i) => a + (parseFloat(i.peso)||0), 0);
+  const semPeso   = STATE.bipList.filter(i => i.peso === null || i.peso === undefined || i.peso === '').length;
+
+  document.getElementById('sumTotal').textContent     = total;
+  document.getElementById('sumEtiquetas').textContent = etqTotal;
+  document.getElementById('sumNaoBipadas').textContent= naoBip;
+  document.getElementById('sumPesoTotal').textContent =
+    pesoTotal.toLocaleString('pt-BR',{minimumFractionDigits:3,maximumFractionDigits:3}) + ' kg';
+  document.getElementById('sumPesoPend').textContent  =
+    semPeso > 0 ? '⚠️ ' + semPeso + ' sem peso' : total > 0 ? '✅ Todas com peso' : '';
+
+  document.getElementById('sumNotas').innerHTML = STATE.notas
+    ? escHtml(STATE.notas) : '<span class="empty-text">Nenhuma nota.</span>';
+  document.getElementById('sumObs').innerHTML = STATE.obs
+    ? escHtml(STATE.obs) : '<span class="empty-text">Nenhuma observação.</span>';
+
+  // Caixas bipadas (ordenadas)
+  const bipEl = document.getElementById('sumBipadas');
+  bipEl.innerHTML = STATE.bipList.length === 0
+    ? '<span class="empty-text">Nenhuma.</span>'
+    : STATE.bipList.map(i => `<span class="box-chip bipada">${escHtml(i.code)}</span>`).join('');
+
+  // Não bipadas
+  const naoBipEl = document.getElementById('sumNaoBipadasList');
+  const naoBipList = STATE.etiquetas.filter(e => !bipados.has('CX-' + String(e.num).padStart(5,'0')));
+  naoBipEl.innerHTML = naoBipList.length === 0
+    ? '<span class="empty-text">✅ Todas as etiquetas foram bipadas!</span>'
+    : naoBipList.map(e => {
+        const code = 'CX-' + String(e.num).padStart(5,'0');
+        return `<span class="box-chip nao-bip">${code}</span>`;
+      }).join('');
+}
+
+// ═══════════════════════════════════════════════
+// EXPORTAR EXCEL
+// ═══════════════════════════════════════════════
+function exportarExcel() {
+  if (!window.XLSX) { showToast('⚠️ Biblioteca Excel não carregada.'); return; }
+
+  const nome      = STATE.remessaAtiva ? STATE.remessaAtiva.nome : 'Sem remessa';
+  const now       = new Date();
+  const dataExp   = now.toLocaleDateString('pt-BR');
+  const horaExp   = now.toLocaleTimeString('pt-BR');
+  const bipados   = new Set(STATE.bipList.map(b => b.code));
+  const pesoTotal = STATE.bipList.reduce((a,i) => a + (parseFloat(i.peso)||0), 0);
+
+  // Aba Resumo
+  const resumo = [
+    ['ZHAZ — Sistema de Carregamento'],
+    ['Remessa:', nome],
+    ['Data de exportação:', dataExp + ' às ' + horaExp],
+    [],
+    ['Total de Caixas Bipadas:', STATE.bipList.length],
+    ['Total de Etiquetas Geradas:', STATE.etiquetas.length],
+    ['Não Bipadas:', STATE.etiquetas.filter(e => !bipados.has('CX-' + String(e.num).padStart(5,'0'))).length],
+    ['Peso Total (kg):', pesoTotal],
+    [],
+    ['Notas de Faturamento:', STATE.notas || '—'],
+    ['Observações:', STATE.obs || '—'],
+  ];
+
+  // Aba Caixas Bipadas
+  const headerBip = ['#','Código','Data','Hora','Peso (kg)'];
+  const rowsBip   = STATE.bipList.map((item, idx) => [
+    idx+1, item.code, item.date||'—', item.time||'—',
+    (item.peso !== null && item.peso !== undefined && item.peso !== '') ? parseFloat(item.peso) : ''
+  ]);
+  rowsBip.push([]);
+  rowsBip.push(['','','','TOTAL PESO (kg):', pesoTotal]);
+
+  // Aba Etiquetas (todas, com status)
+  const headerEtq = ['Nº','Código','Impressa','Bipada','Peso (kg)'];
+  const rowsEtq   = STATE.etiquetas.map(e => {
+    const code   = 'CX-' + String(e.num).padStart(5,'0');
+    const isBip  = bipados.has(code);
+    const bipItem= isBip ? STATE.bipList.find(b => b.code === code) : null;
+    return [
+      e.num, code,
+      e.impressa ? 'Sim' : 'Não',
+      isBip ? 'Sim' : 'Não',
+      bipItem && bipItem.peso !== null && bipItem.peso !== undefined ? parseFloat(bipItem.peso) : ''
+    ];
+  });
+
+  const wb = XLSX.utils.book_new();
+  const ws1 = XLSX.utils.aoa_to_sheet(resumo);
+  ws1['!cols'] = [{wch:28},{wch:40}];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Resumo');
+
+  const ws2 = XLSX.utils.aoa_to_sheet([headerBip,...rowsBip]);
+  ws2['!cols'] = [{wch:6},{wch:14},{wch:12},{wch:12},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Caixas Bipadas');
+
+  const ws3 = XLSX.utils.aoa_to_sheet([headerEtq,...rowsEtq]);
+  ws3['!cols'] = [{wch:6},{wch:14},{wch:10},{wch:10},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, ws3, 'Todas as Etiquetas');
+
+  const fname = 'ZHAZ_' + nome.replace(/[^a-z0-9]/gi,'_') + '_' + dataExp.replace(/\//g,'-') + '.xlsx';
+  XLSX.writeFile(wb, fname);
+  showToast('📊 Planilha exportada!');
+}
+
+// ═══════════════════════════════════════════════
+// FINALIZAR / LIMPAR
+// ═══════════════════════════════════════════════
+function finalizarDemanda() {
+  updateSummary();
+  document.getElementById('modalFinalizarText').innerHTML =
+    'Caminhão carregado com <strong>' + STATE.bipList.length + ' caixa(s)</strong>.<br>' +
+    'Notas: <em>' + escHtml(STATE.notas||'—') + '</em><br>' +
+    'Observações: <em>' + escHtml(STATE.obs||'—') + '</em>';
+  document.getElementById('modalFinalizar').classList.add('show');
+}
+function closeModalFinalizar() { document.getElementById('modalFinalizar').classList.remove('show'); }
+
+function openClearModal() { document.getElementById('modalClear').classList.add('show'); }
+function closeModal()     { document.getElementById('modalClear').classList.remove('show'); }
+
+function clearAll() {
+  if (STATE.remessaAtiva) STATE.remessas = STATE.remessas.filter(r => r.id !== STATE.remessaAtiva.id);
+  STATE.remessaAtiva = null;
+  STATE.etiquetas = []; STATE.bipList = []; STATE.notas = ''; STATE.obs = '';
+  document.getElementById('notasField').value = '';
+  document.getElementById('obsField').value   = '';
+  saveAll();
+  renderEtqGrid(); renderBipTable(); updateCounters(); updateSeqBadge();
+  updateSummary(); renderRemessas(); updateRemessaHeader();
+  closeModal();
+  showToast('🗑️ Sistema limpo! Pronto para nova demanda.');
+}
+
+// ═══════════════════════════════════════════════
+// TOAST / UTIL
+// ═══════════════════════════════════════════════
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+['modalClear','modalFinalizar','modalNovaRemessa'].forEach(id => {
+  document.getElementById(id).addEventListener('click', function(e) {
+    if (e.target === this) this.classList.remove('show');
+  });
+});
+
+// ═══════════════════════════════════════════════
+// START
+// ═══════════════════════════════════════════════
+init();
+</script>
+</body>
+</html>
